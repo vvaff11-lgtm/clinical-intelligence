@@ -198,6 +198,7 @@ class WorkerMedicalKnowledgeService:
 如果检索信息显示某个疾病与症状相关，只能表述为“可能与某某疾病相关”、“可能是某某疾病的一种表现”或“建议进一步就医检查确认”。
 禁止使用“答案：某某疾病”、“就是某某疾病”、“可以诊断为某某疾病”这类确定性表述。
 如果信息不足，请回答“根据现有信息无法确定”。
+只输出最终中文回答，不要输出英文分析、思考过程、推理步骤、草稿过程或小标题。
 问题：{}
 医疗信息：{}
 回答：""".format(question, context_text)
@@ -362,6 +363,14 @@ class WorkerMedicalKnowledgeService:
 
     def remove_think_content(self, text: str) -> str:
         cleaned_text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        chinese_answer_match = re.search(
+            r"(您好[，,].*|根据提供的医疗信息.*|从提供的医疗信息.*|基于提供的医疗信息.*)",
+            cleaned_text,
+            flags=re.DOTALL,
+        )
+        if chinese_answer_match:
+            cleaned_text = chinese_answer_match.group(1)
+        cleaned_text = re.sub(r"\*\*[A-Za-z][^*]{0,80}\*\*[^。！？\n]*", "", cleaned_text)
         return re.sub(r"\s+", " ", cleaned_text).strip()
 
 
