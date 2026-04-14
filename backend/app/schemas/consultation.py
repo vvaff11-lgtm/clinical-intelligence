@@ -33,7 +33,7 @@ class CreateMessageRequest(CamelModel):
     query_type: Literal["疾病", "症状"] | None = None
     top_k: int | None = Field(default=None, ge=1, le=10)
     temperature: float | None = Field(default=None, ge=0, le=1)
-    model_type: Literal["AliyunBailian", "Ollama"] | None = None
+    model_type: Literal["AliyunBailian", "Ollama", "Gemini"] | None = None
     model_name: str | None = Field(default=None, max_length=120)
     llm_base_url: str | None = Field(default=None, max_length=255)
     api_key: str | None = Field(default=None, max_length=255)
@@ -48,7 +48,7 @@ class RegenerateMessageRequest(CamelModel):
     query_type: Literal["疾病", "症状"] | None = None
     top_k: int | None = Field(default=None, ge=1, le=10)
     temperature: float | None = Field(default=None, ge=0, le=1)
-    model_type: Literal["AliyunBailian", "Ollama"] | None = None
+    model_type: Literal["AliyunBailian", "Ollama", "Gemini"] | None = None
     model_name: str | None = Field(default=None, max_length=120)
     llm_base_url: str | None = Field(default=None, max_length=255)
     api_key: str | None = Field(default=None, max_length=255)

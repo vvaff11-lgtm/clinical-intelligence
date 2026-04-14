@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = "12345678"
     dashscope_api_key: str = ""
+    gemini_api_key: str = ""
+    gemini_api_endpoint: str = "http://127.0.0.1:8045"
     medical_model_type: str = "AliyunBailian"
     medical_model_name: str = "qwen-plus"
     medical_llm_base_url: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"

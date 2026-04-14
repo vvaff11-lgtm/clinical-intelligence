@@ -101,7 +101,7 @@ export const api = {
       queryType?: '疾病' | '症状';
       topK?: number;
       temperature?: number;
-      modelType?: 'AliyunBailian' | 'Ollama';
+      modelType?: 'AliyunBailian' | 'Ollama' | 'Gemini';
       modelName?: string;
       llmBaseUrl?: string;
       apiKey?: string;
@@ -118,7 +118,7 @@ export const api = {
       queryType?: '疾病' | '症状';
       topK?: number;
       temperature?: number;
-      modelType?: 'AliyunBailian' | 'Ollama';
+      modelType?: 'AliyunBailian' | 'Ollama' | 'Gemini';
       modelName?: string;
       llmBaseUrl?: string;
       apiKey?: string;

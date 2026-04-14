@@ -4,6 +4,7 @@ import json
 import re
 import sys
 from typing import Any, Dict, List, Tuple
+from urllib.parse import quote
 
 import requests
 from py2neo import Graph
@@ -263,6 +264,8 @@ class WorkerMedicalKnowledgeService:
             return self.call_ollama(prompt, temperature)
         if self.settings["medical_model_type"] == "AliyunBailian":
             return self.call_aliyun_bailian(prompt, temperature)
+        if self.settings["medical_model_type"] == "Gemini":
+            return self.call_gemini(prompt, temperature)
         raise ValueError("不支持的模型类型：{}".format(self.settings["medical_model_type"]))
 
     def call_aliyun_bailian(self, prompt: str, temperature: float) -> str:
@@ -296,6 +299,37 @@ class WorkerMedicalKnowledgeService:
             return data["output"]["choices"][0]["message"]["content"] or ""
         finally:
             session.close()
+
+    def call_gemini(self, prompt: str, temperature: float) -> str:
+        api_key = self.settings.get("gemini_api_key") or ""
+        if not api_key:
+            raise ValueError("缺少 GEMINI_API_KEY，请在 .env 中配置 Gemini API Key")
+
+        endpoint = (self.settings.get("gemini_api_endpoint") or "http://127.0.0.1:8045").rstrip("/")
+        response = requests.post(
+            "{}/v1beta/models/{}:generateContent".format(
+                endpoint,
+                quote(self.settings["medical_model_name"], safe=""),
+            ),
+            headers={
+                "x-goog-api-key": api_key,
+                "Authorization": "Bearer {}".format(api_key),
+                "Content-Type": "application/json",
+            },
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": temperature,
+                    "topP": 0.9,
+                    "maxOutputTokens": 4096,
+                },
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        data = response.json()
+        parts = data["candidates"][0]["content"]["parts"]
+        return "\n".join(str(part.get("text", "")) for part in parts).strip()
 
     def call_ollama(self, prompt: str, temperature: float) -> str:
         llm_base_url = self.settings["medical_llm_base_url"]

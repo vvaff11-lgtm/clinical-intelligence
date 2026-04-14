@@ -27,8 +27,12 @@ interface ChatProps {
 }
 
 const ALIYUN_BAILIAN_API_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
+const GEMINI_API_URL = 'http://127.0.0.1:8045';
 const ALIYUN_MODEL_OPTIONS = ['qwen-plus', 'qwen3.6-plus', 'qwen-max', 'qwen-turbo', 'qwen-flash'];
 const OLLAMA_MODEL_OPTIONS = ['deepseek-r1:1.5b', 'qwen2.5:7b', 'llama3.1:8b'];
+const GEMINI_MODEL_OPTIONS = ['gemini-3.1-pro-high', 'gemini-2.5-pro', 'gemini-2.5-flash'];
+
+type MedicalModelType = 'AliyunBailian' | 'Ollama' | 'Gemini';
 
 type DisplayMessage = ConsultationMessage | {
   id: string;
@@ -73,7 +77,7 @@ export default function Chat({ activeSessionId, onNavigate, onSelectSession, onA
   const [inputValue, setInputValue] = useState('');
   const [queryType, setQueryType] = useState<'疾病' | '症状'>('疾病');
   const [topK, setTopK] = useState(3);
-  const [modelType, setModelType] = useState<'AliyunBailian' | 'Ollama'>('AliyunBailian');
+  const [modelType, setModelType] = useState<MedicalModelType>('AliyunBailian');
   const [modelName, setModelName] = useState('qwen-plus');
   const [llmBaseUrl, setLlmBaseUrl] = useState(ALIYUN_BAILIAN_API_URL);
   const [apiKey, setApiKey] = useState('');
@@ -184,6 +188,12 @@ export default function Chat({ activeSessionId, onNavigate, onSelectSession, onA
     if (modelType === 'AliyunBailian') {
       setModelName('qwen-plus');
       setLlmBaseUrl(ALIYUN_BAILIAN_API_URL);
+      return;
+    }
+
+    if (modelType === 'Gemini') {
+      setModelName('gemini-3.1-pro-high');
+      setLlmBaseUrl(GEMINI_API_URL);
       return;
     }
 
@@ -565,11 +575,12 @@ export default function Chat({ activeSessionId, onNavigate, onSelectSession, onA
               <span className="text-[11px] font-bold text-outline uppercase tracking-widest mb-2 block">选择模型类型</span>
               <select
                 value={modelType}
-                onChange={(event) => setModelType(event.target.value as 'AliyunBailian' | 'Ollama')}
+                onChange={(event) => setModelType(event.target.value as MedicalModelType)}
                 className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold"
               >
                 <option value="AliyunBailian">阿里云百炼</option>
                 <option value="Ollama">Ollama</option>
+                <option value="Gemini">Gemini</option>
               </select>
             </label>
 
@@ -601,6 +612,41 @@ export default function Chat({ activeSessionId, onNavigate, onSelectSession, onA
                     className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold"
                   >
                     {ALIYUN_MODEL_OPTIONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : modelType === 'Gemini' ? (
+              <>
+                <label className="block">
+                  <span className="text-[11px] font-bold text-outline uppercase tracking-widest mb-2 block">Gemini API Key</span>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder="留空使用 .env 配置"
+                    className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-bold text-outline uppercase tracking-widest mb-2 block">Gemini 代理地址</span>
+                  <input
+                    value={llmBaseUrl}
+                    onChange={(event) => setLlmBaseUrl(event.target.value)}
+                    className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-bold text-outline uppercase tracking-widest mb-2 block">选择 Gemini 模型</span>
+                  <select
+                    value={modelName}
+                    onChange={(event) => setModelName(event.target.value)}
+                    className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs font-semibold"
+                  >
+                    {GEMINI_MODEL_OPTIONS.map((value) => (
                       <option key={value} value={value}>
                         {value}
                       </option>

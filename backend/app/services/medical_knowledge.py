@@ -6,6 +6,7 @@ import json
 import subprocess
 from functools import lru_cache
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -79,7 +80,14 @@ class MedicalKnowledgeService:
             }
 
         prompt = self._build_prompt(question, contexts)
-        answer = self._call_llm(prompt, resolved_temperature)
+        answer = self._call_llm(
+            prompt,
+            resolved_temperature,
+            model_type=model_type,
+            model_name=model_name,
+            llm_base_url=llm_base_url,
+            api_key=api_key,
+        )
         return self._remove_think_content(answer), {
             "question": question,
             "contexts": contexts,
@@ -102,6 +110,11 @@ class MedicalKnowledgeService:
         """
         用 MedicalEnv 子进程执行知识图谱查询，避免主后端环境与外部课程环境互相污染。
         """
+        resolved_model_type = model_type or self.settings.medical_model_type
+        if resolved_model_type == "Gemini":
+            resolved_llm_base_url = llm_base_url or self.settings.gemini_api_endpoint
+        else:
+            resolved_llm_base_url = llm_base_url or self.settings.medical_llm_base_url
         payload = {
             "question": question,
             "query_type": query_type or self.settings.medical_query_type,
@@ -112,9 +125,11 @@ class MedicalKnowledgeService:
                 "neo4j_user": self.settings.neo4j_user,
                 "neo4j_password": self.settings.neo4j_password,
                 "dashscope_api_key": api_key or self.settings.dashscope_api_key,
-                "medical_model_type": model_type or self.settings.medical_model_type,
+                "gemini_api_key": api_key or self.settings.gemini_api_key,
+                "gemini_api_endpoint": resolved_llm_base_url if resolved_model_type == "Gemini" else self.settings.gemini_api_endpoint,
+                "medical_model_type": resolved_model_type,
                 "medical_model_name": model_name or self.settings.medical_model_name,
-                "medical_llm_base_url": llm_base_url or self.settings.medical_llm_base_url,
+                "medical_llm_base_url": resolved_llm_base_url,
                 "ollama_base_url": self.settings.ollama_base_url,
                 "ollama_embedding_model": self.settings.ollama_embedding_model,
             },
@@ -183,6 +198,8 @@ class MedicalKnowledgeService:
                 "neo4j_user": self.settings.neo4j_user,
                 "neo4j_password": self.settings.neo4j_password,
                 "dashscope_api_key": self.settings.dashscope_api_key,
+                "gemini_api_key": self.settings.gemini_api_key,
+                "gemini_api_endpoint": self.settings.gemini_api_endpoint,
                 "medical_model_type": self.settings.medical_model_type,
                 "medical_model_name": self.settings.medical_model_name,
                 "medical_llm_base_url": self.settings.medical_llm_base_url,
@@ -465,29 +482,48 @@ class MedicalKnowledgeService:
             "edges": edges,
         }
 
-    def _call_llm(self, prompt: str, temperature: float) -> str:
-        model_type = self.settings.medical_model_type
+    def _call_llm(
+        self,
+        prompt: str,
+        temperature: float,
+        model_type: str | None = None,
+        model_name: str | None = None,
+        llm_base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> str:
+        model_type = model_type or self.settings.medical_model_type
+        model_name = model_name or self.settings.medical_model_name
         if model_type == "Ollama":
-            return self._call_ollama(prompt, temperature)
+            return self._call_ollama(prompt, temperature, model_name, llm_base_url)
         if model_type == "AliyunBailian":
-            return self._call_aliyun_bailian(prompt, temperature)
+            return self._call_aliyun_bailian(prompt, temperature, model_name, llm_base_url, api_key)
+        if model_type == "Gemini":
+            return self._call_gemini(prompt, temperature, model_name, llm_base_url, api_key)
         raise MedicalKnowledgeError(f"不支持的模型类型：{model_type}")
 
-    def _call_aliyun_bailian(self, prompt: str, temperature: float) -> str:
-        if not self.settings.dashscope_api_key:
+    def _call_aliyun_bailian(
+        self,
+        prompt: str,
+        temperature: float,
+        model_name: str,
+        llm_base_url: str | None,
+        api_key: str | None,
+    ) -> str:
+        resolved_api_key = api_key or self.settings.dashscope_api_key
+        if not resolved_api_key:
             raise MedicalKnowledgeError("缺少 DASHSCOPE_API_KEY，请在 .env 中配置阿里云百炼 API Key")
 
         session = requests.Session()
         session.trust_env = False
         try:
             response = session.post(
-                self.settings.medical_llm_base_url,
+                llm_base_url or self.settings.medical_llm_base_url,
                 headers={
-                    "Authorization": f"Bearer {self.settings.dashscope_api_key}",
+                    "Authorization": f"Bearer {resolved_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": self.settings.medical_model_name,
+                    "model": model_name,
                     "input": {"messages": [{"role": "user", "content": prompt}]},
                     "parameters": {
                         "temperature": temperature,
@@ -507,8 +543,47 @@ class MedicalKnowledgeService:
         finally:
             session.close()
 
-    def _call_ollama(self, prompt: str, temperature: float) -> str:
-        llm_base_url = self.settings.medical_llm_base_url
+    def _call_gemini(
+        self,
+        prompt: str,
+        temperature: float,
+        model_name: str,
+        llm_base_url: str | None,
+        api_key: str | None,
+    ) -> str:
+        resolved_api_key = api_key or self.settings.gemini_api_key
+        if not resolved_api_key:
+            raise MedicalKnowledgeError("缺少 GEMINI_API_KEY，请在 .env 中配置 Gemini API Key")
+
+        endpoint = (llm_base_url or self.settings.gemini_api_endpoint).rstrip("/")
+        try:
+            response = requests.post(
+                f"{endpoint}/v1beta/models/{quote(model_name, safe='')}:generateContent",
+                headers={
+                    "x-goog-api-key": resolved_api_key,
+                    "Authorization": f"Bearer {resolved_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "topP": 0.9,
+                        "maxOutputTokens": 4096,
+                    },
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            data = response.json()
+            parts = data["candidates"][0]["content"]["parts"]
+            return "\n".join(str(part.get("text", "")) for part in parts).strip()
+        except (requests.RequestException, KeyError, IndexError, TypeError) as exc:
+            logger.exception("Gemini 回答生成失败")
+            raise MedicalKnowledgeError("Gemini 回答生成失败，请检查 API Key、代理端点和模型名") from exc
+
+    def _call_ollama(self, prompt: str, temperature: float, model_name: str, llm_base_url: str | None) -> str:
+        llm_base_url = llm_base_url or self.settings.medical_llm_base_url
         if "dashscope.aliyuncs.com" in llm_base_url:
             llm_base_url = f"{self.settings.ollama_base_url.rstrip('/')}/v1"
 
@@ -516,7 +591,7 @@ class MedicalKnowledgeService:
             response = requests.post(
                 f"{llm_base_url.rstrip('/')}/completions",
                 json={
-                    "model": self.settings.medical_model_name,
+                    "model": model_name,
                     "prompt": prompt,
                     "temperature": temperature,
                     "top_p": 0.9,
