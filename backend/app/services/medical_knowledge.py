@@ -560,7 +560,6 @@ class MedicalKnowledgeService:
             response = requests.post(
                 f"{endpoint}/v1beta/models/{quote(model_name, safe='')}:generateContent",
                 headers={
-                    "x-goog-api-key": resolved_api_key,
                     "Authorization": f"Bearer {resolved_api_key}",
                     "Content-Type": "application/json",
                 },

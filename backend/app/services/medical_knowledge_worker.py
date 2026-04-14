@@ -312,7 +312,6 @@ class WorkerMedicalKnowledgeService:
                 quote(self.settings["medical_model_name"], safe=""),
             ),
             headers={
-                "x-goog-api-key": api_key,
                 "Authorization": "Bearer {}".format(api_key),
                 "Content-Type": "application/json",
             },
