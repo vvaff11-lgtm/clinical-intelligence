@@ -10,6 +10,13 @@ import requests
 from py2neo import Graph
 
 
+def mask_secret_text(text: str) -> str:
+    """
+    脱敏代理或模型服务返回的错误正文，避免把用户临时填入的 Key 写进日志和页面。
+    """
+    return re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", text)
+
+
 class WorkerMedicalKnowledgeService:
     """
     在 MedicalEnv 中运行的医疗知识图谱查询器。
@@ -316,7 +323,7 @@ class WorkerMedicalKnowledgeService:
                 "Content-Type": "application/json",
             },
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "temperature": temperature,
                     "topP": 0.9,
@@ -325,6 +332,9 @@ class WorkerMedicalKnowledgeService:
             },
             timeout=120,
         )
+        if not response.ok:
+            error_text = mask_secret_text(response.text[:1000])
+            raise ValueError("Gemini 代理返回 {}：{}".format(response.status_code, error_text))
         response.raise_for_status()
         data = response.json()
         parts = data["candidates"][0]["content"]["parts"]

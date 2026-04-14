@@ -16,6 +16,13 @@ from backend.app.core.config import ROOT_DIR, Settings, get_settings
 logger = logging.getLogger(__name__)
 
 
+def mask_secret_text(text: str) -> str:
+    """
+    脱敏代理或模型服务返回的错误正文，避免把用户临时填入的 Key 写进日志和页面。
+    """
+    return re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", text)
+
+
 class MedicalKnowledgeError(RuntimeError):
     """
     医疗知识图谱查询失败。
@@ -564,7 +571,7 @@ class MedicalKnowledgeService:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "contents": [{"parts": [{"text": prompt}]}],
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": temperature,
                         "topP": 0.9,
@@ -573,6 +580,9 @@ class MedicalKnowledgeService:
                 },
                 timeout=120,
             )
+            if not response.ok:
+                error_text = mask_secret_text(response.text[:1000])
+                raise MedicalKnowledgeError(f"Gemini 代理返回 {response.status_code}：{error_text}")
             response.raise_for_status()
             data = response.json()
             parts = data["candidates"][0]["content"]["parts"]
